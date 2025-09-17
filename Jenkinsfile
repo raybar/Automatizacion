@@ -49,6 +49,7 @@ RUN mkdir -p /var/www/html/hackable/uploads \
 && chmod 777 /var/www/html/hackable/uploads
 RUN mkdir -p /var/www/html/external/ \
 && chmod 777 /var/www/html/external/
+RUN mkdir -p /var/www/html/external/phpids/0.6/lib/IDS/tmp/ \
 RUN chmod 777 /var/www/html/external/phpids/0.6/lib/IDS/tmp/
 EOF
                     '''
@@ -97,6 +98,7 @@ EOF
         }
     }
 }
+
 
 
 
