@@ -1,10 +1,6 @@
 pipeline {
     agent any
 
-    tools {
-        sonarqube 'sonar-scanner'
-    }
-
     stages {
         stage('Clonar Repositorio') {
             steps {
@@ -90,3 +86,4 @@ EOF
         }
     }
 }
+
