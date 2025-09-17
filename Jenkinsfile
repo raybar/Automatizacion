@@ -13,7 +13,7 @@ pipeline {
             steps {
                 echo 'Iniciando análisis estático...'
                 // Usa el nombre del servidor configurado en Jenkins
-                withSonarQubeEnv('sonarqube-local') {
+                withSonarQubeEnv('SonarQube-local') {
                     dir('dvwa') {
                         // El comando sonar-scanner ahora es reconocido
                         sh 'sonar-scanner -Dsonar.projectKey=DVWA-Proyecto'
@@ -82,6 +82,7 @@ EOF
         }
     }
 }
+
 
 
 
