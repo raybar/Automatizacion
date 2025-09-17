@@ -76,7 +76,7 @@ EOF
             steps {
                 script {
                     echo 'Iniciando el escaneo dinámico con OWASP ZAP...'
-                    sh 'docker run --rm -v $(pwd):/zap/wrk/:rw ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py -t http://host.docker.internal:8080 -r zap-report.html'
+                    sh 'docker run --rm -v $(pwd):/zap/wrk/:rw ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py -t http://host.docker.internal:80 -r zap-report.html'
                 }
             }
         }
@@ -98,6 +98,7 @@ EOF
         }
     }
 }
+
 
 
 
