@@ -67,7 +67,7 @@ EOF
                     sh 'docker build -t dvwa-image .'
                 }
 
-                sh 'docker run -d --name dvwa-app -p 8080:80 dvwa-image'
+                sh 'docker run -d --name dvwa-app -p 80:80 dvwa-image'
                 sleep 30
             }
         }
@@ -98,6 +98,7 @@ EOF
         }
     }
 }
+
 
 
 
