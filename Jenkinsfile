@@ -9,6 +9,14 @@ pipeline {
             }
         }
 
+    stage('Instalar Sonar-Scanner') {
+        steps {
+            sh 'wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.7.0.2747-linux.zip -O /tmp/sonar-scanner.zip'
+            sh 'unzip -q /tmp/sonar-scanner.zip -d /opt'
+            sh 'ln -s /opt/sonar-scanner-*/bin/sonar-scanner /usr/local/bin/sonar-scanner'
+        }
+    }
+
         stage('Análisis Estático con SonarQube') {
             steps {
                 echo 'Iniciando análisis estático con el servidor local...'
@@ -86,6 +94,7 @@ EOF
         }
     }
 }
+
 
 
 
