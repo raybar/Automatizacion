@@ -5,7 +5,7 @@ pipeline {
         stage('Checkout Code') {
             steps {
                 echo 'Clonando el repositorio...'
-                git branch: 'main', url: 'https://github.com/raybar/Automatizacion.git'
+                git branch: 'master', url: 'https://github.com/raybar/Automatizacion.git'
             }
         }
 
@@ -53,3 +53,4 @@ pipeline {
         }
     }
 }
+
