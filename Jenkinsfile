@@ -16,7 +16,7 @@ pipeline {
                 withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                     dir('dvwa') {
                         // Pasamos la URL del servidor local y el token directamente al comando
-                        sh '''/usr/bin/sonar-scanner \
+                        sh '''/usr/local/bin/sonar-scanner \
                             -Dsonar.projectKey=DVWA-Proyecto \
                             -Dsonar.sources=. \
                             -Dsonar.host.url=http://sonarqube:9000 \
@@ -86,6 +86,7 @@ EOF
         }
     }
 }
+
 
 
 
