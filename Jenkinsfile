@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    tools {
+        sonarqube 'sonar-scanner' // This name must match the one you configured
+    }
+
     stages {
         stage('Clonar Repositorio') {
             steps {
@@ -86,5 +90,6 @@ EOF
         }
     }
 }
+
 
 
