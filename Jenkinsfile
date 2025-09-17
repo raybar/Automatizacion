@@ -16,7 +16,7 @@ pipeline {
                 withSonarQubeEnv('SonarQube-local') {
                     dir('dvwa') {
                         // El comando sonar-scanner ahora es reconocido
-                        sh 'sonar-scanner -Dsonar.projectKey=DVWA-Proyecto'
+                        sh 'sonarqube-local -Dsonar.projectKey=DVWA-Proyecto'
                     }
                 }
             }
@@ -82,6 +82,7 @@ EOF
         }
     }
 }
+
 
 
 
