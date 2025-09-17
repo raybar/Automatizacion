@@ -11,16 +11,12 @@ pipeline {
 
      stage('Análisis Estático con SonarQube') {
             steps {
-                echo 'Iniciando análisis estático con el servidor local...'
-                // Usamos withCredentials para acceder de forma segura al token
-                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                echo 'Iniciando análisis estático...'
+                // Usa el nombre del servidor configurado en Jenkins
+                withSonarQubeEnv('sonarqube-local') {
                     dir('dvwa') {
-                        // Pasamos la URL del servidor local y el token directamente al comando
-                        sh '''/usr/bin/sonar-scanner \
-                            -Dsonar.projectKey=DVWA-Proyecto \
-                            -Dsonar.sources=. \
-                            -Dsonar.host.url=http://sonarqube:9000 \
-                            -Dsonar.login=$SONAR_TOKEN'''
+                        // El comando sonar-scanner ahora es reconocido
+                        sh 'sonar-scanner -Dsonar.projectKey=DVWA-Proyecto'
                     }
                 }
             }
@@ -86,6 +82,7 @@ EOF
         }
     }
 }
+
 
 
 
