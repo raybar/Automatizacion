@@ -15,17 +15,16 @@ pipeline {
 
         stage('Análisis Estático con SonarQube') {
             steps {
-                echo 'Iniciando análisis estático del código...'
-                // Usamos withCredentials para acceder al token de forma segura
+                echo 'Iniciando análisis estático con el servidor local...'
+                // Usamos withCredentials para acceder de forma segura al token
                 withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                    // Y withSonarQubeEnv para inyectar la URL del servidor
-                    withSonarQubeEnv('SonarQube-local') {
-                        dir('dvwa') {
-                            sh '''/usr/bin/sonar-scanner \
-                                -Dsonar.projectKey=DVWA-Proyecto \
-                                -Dsonar.sources=. \
-                                -Dsonar.login=$SONAR_TOKEN''' // Aquí usamos la variable de entorno
-                        }
+                    dir('dvwa') {
+                        // Pasamos la URL del servidor local y el token directamente al comando
+                        sh '''/usr/bin/sonar-scanner \
+                            -Dsonar.projectKey=DVWA-Proyecto \
+                            -Dsonar.sources=. \
+                            -Dsonar.host.url=http://localhost:9000 \
+                            -Dsonar.login=$SONAR_TOKEN'''
                     }
                 }
             }
