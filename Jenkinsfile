@@ -1,44 +1,82 @@
 pipeline {
     agent any
 
+    tools {
+        sonarqube 'sonar-scanner'
+    }
+
     stages {
-        stage('Checkout Code') {
+        stage('Clonar Repositorio') {
             steps {
-                echo 'Clonando el repositorio...'
-                git branch: 'master', url: 'https://github.com/raybar/Automatizacion.git'
+                echo 'Clonando el repositorio de la aplicación DVWA...'
+                git url: 'https://github.com/raybar/Automatizacion.git', branch: 'master'
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Análisis Estático con SonarQube') {
             steps {
-                echo 'Construyendo la imagen de Docker...'
-                sh 'docker build -t automatizacion-app .'
+                echo 'Iniciando análisis estático del código...'
+                // Usamos withCredentials para acceder al token de forma segura
+                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                    // Y withSonarQubeEnv para inyectar la URL del servidor
+                    withSonarQubeEnv('SonarQube-local') {
+                        dir('dvwa') {
+                            sh '''/usr/bin/sonar-scanner \
+                                -Dsonar.projectKey=DVWA-Proyecto \
+                                -Dsonar.sources=. \
+                                -Dsonar.login=$SONAR_TOKEN''' // Aquí usamos la variable de entorno
+                        }
+                    }
+                }
             }
         }
 
-        stage('Run Docker Container') {
+        stage('Crear Dockerfile') {
             steps {
-                echo 'Ejecutando el contenedor...'
-                sh 'docker run -d --name automatizacion-app -p 80:80 automatizacion-app'
+                echo 'Creando el Dockerfile para DVWA...'
+                dir('dvwa') {
+                    sh '''
+cat <<EOF > Dockerfile
+FROM php:7.4-apache
+RUN a2enmod rewrite
+RUN docker-php-ext-install mysqli pdo pdo_mysql
+COPY . /var/www/html/
+RUN chmod 777 /var/www/html/hackable/uploads
+RUN chmod 777 /var/www/html/external/
+RUN chmod 777 /var/www/html/external/phpids/0.6/lib/IDS/tmp/
+EOF
+                    '''
+                }
             }
         }
 
-        stage('OWASP ZAP Dynamic Scan') {
+        stage('Construir y Desplegar Aplicación') {
+            steps {
+                echo 'Construyendo y ejecutando el contenedor de la aplicación DVWA...'
+                sh 'docker stop dvwa-app || true'
+                sh 'docker rm dvwa-app || true'
+
+                dir('dvwa') {
+                    sh 'docker build -t dvwa-image .'
+                }
+
+                sh 'docker run -d --name dvwa-app -p 8080:80 dvwa-image'
+                sleep 30
+            }
+        }
+
+        stage('Análisis Dinámico con OWASP ZAP') {
             steps {
                 script {
                     echo 'Iniciando el escaneo dinámico con OWASP ZAP...'
-                    // Ejecuta un contenedor de ZAP para escanear la aplicación.
-                    // Se conecta a http://host.docker.internal:8080 para acceder al contenedor de la aplicación.
-                    // -v $(pwd):/zap/wrk/:rw mapea el directorio local para guardar el reporte.
                     sh 'docker run --rm -v $(pwd):/zap/wrk/:rw ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py -t http://host.docker.internal:8080 -r zap-report.html'
                 }
             }
         }
 
-        stage('Reporting') {
+        stage('Reportes') {
             steps {
-                echo 'Archivando los reportes...'
-                // Archiva el reporte HTML generado por ZAP.
+                echo 'Archivando los reportes de análisis...'
                 archiveArtifacts artifacts: 'zap-report.html', fingerprint: true
             }
         }
@@ -46,11 +84,10 @@ pipeline {
 
     post {
         always {
-            echo 'Limpiando los contenedores...'
-            // Detiene y elimina ambos contenedores, la aplicación y ZAP.
-            sh 'docker stop automatizacion-app || true'
-            sh 'docker rm automatizacion-app || true'
+            echo 'Limpiando el contenedor y los archivos temporales...'
+            sh 'docker stop dvwa-app || true'
+            sh 'docker rm dvwa-app || true'
+            sh 'rm -f ./dvwa/Dockerfile || true'
         }
     }
 }
-
