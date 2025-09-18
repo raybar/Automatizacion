@@ -58,7 +58,7 @@ EOF
                 dir('dvwa') {
                     sh 'docker build -t dvwa-image .'
                 }
-                sh 'docker run -d --network zap-net --name dvwa-app dvwa-image'
+                sh 'docker run -d --network zap-net -p 80:80 --name dvwa-app dvwa-image'
                 sleep 30
             }
         }
@@ -88,6 +88,7 @@ EOF
         }
     }
 }
+
 
 
 
