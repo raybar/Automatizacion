@@ -398,40 +398,118 @@ CMD ["/usr/local/bin/start-dvwa.sh"]
                 script {
                     try {
                         sh '''
-                            # Esperar a que la aplicación esté lista
-                            echo "⏳ Esperando a que DVWA esté disponible..."
-                            timeout 120 bash -c 'until curl -f http://localhost:${DVWA_PORT}/ >/dev/null 2>&1; do sleep 5; done'
+                            # Hacer el script de diagnóstico ejecutable
+                            chmod +x diagnose-containers.sh
                             
-                            # Verificaciones de salud
-                            echo "🔍 Ejecutando verificaciones de salud:"
+                            # Ejecutar diagnóstico inicial
+                            echo "🔍 Ejecutando diagnóstico inicial de contenedores..."
+                            ./diagnose-containers.sh || echo "⚠️ Diagnóstico inicial completado con advertencias"
+                            
+                            # Verificar que los contenedores estén ejecutándose
+                            echo "📊 Verificando estado de contenedores..."
+                            if ! docker ps --filter "name=${MYSQL_CONTAINER}" --format "{{.Names}}" | grep -q "${MYSQL_CONTAINER}"; then
+                                echo "❌ Error: Contenedor MySQL no está ejecutándose"
+                                docker logs --tail 20 ${MYSQL_CONTAINER} || echo "No se pudieron obtener logs de MySQL"
+                                exit 1
+                            fi
+                            
+                            if ! docker ps --filter "name=${DVWA_CONTAINER}" --format "{{.Names}}" | grep -q "${DVWA_CONTAINER}"; then
+                                echo "❌ Error: Contenedor DVWA no está ejecutándose"
+                                docker logs --tail 20 ${DVWA_CONTAINER} || echo "No se pudieron obtener logs de DVWA"
+                                exit 1
+                            fi
+                            
+                            echo "✅ Ambos contenedores están ejecutándose"
+                            
+                            # Esperar a que la aplicación esté lista con verificaciones incrementales
+                            echo "⏳ Esperando a que DVWA esté disponible..."
+                            
+                            # Verificación en etapas con timeouts incrementales
+                            for attempt in 1 2 3 4 5; do
+                                echo "🔄 Intento $attempt/5 - Verificando disponibilidad..."
+                                
+                                # Verificar puerto primero
+                                if ! docker port ${DVWA_CONTAINER} 80 >/dev/null 2>&1; then
+                                    echo "⚠️ Puerto 80 no está expuesto en el contenedor"
+                                    sleep 10
+                                    continue
+                                fi
+                                
+                                # Verificar conectividad HTTP básica
+                                if timeout 30 bash -c 'until curl -s http://localhost:${DVWA_PORT}/ >/dev/null 2>&1; do sleep 2; done'; then
+                                    echo "✅ Conectividad HTTP establecida en intento $attempt"
+                                    break
+                                else
+                                    echo "⚠️ Intento $attempt falló, esperando antes del siguiente..."
+                                    if [ $attempt -eq 5 ]; then
+                                        echo "❌ Error: DVWA no responde después de 5 intentos"
+                                        echo "📋 Logs del contenedor DVWA:"
+                                        docker logs --tail 30 ${DVWA_CONTAINER}
+                                        echo "📋 Logs del contenedor MySQL:"
+                                        docker logs --tail 20 ${MYSQL_CONTAINER}
+                                        exit 1
+                                    fi
+                                    sleep 15
+                                fi
+                            done
+                            
+                            # Verificaciones de salud detalladas
+                            echo "🔍 Ejecutando verificaciones de salud detalladas:"
                             
                             # Verificar respuesta HTTP
-                            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${DVWA_PORT}/)
+                            echo "🌐 Verificando respuesta HTTP..."
+                            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${DVWA_PORT}/ || echo "000")
                             if [ "$HTTP_STATUS" = "200" ]; then
                                 echo "✅ Aplicación responde correctamente (HTTP $HTTP_STATUS)"
                             else
                                 echo "❌ Error: Aplicación no responde correctamente (HTTP $HTTP_STATUS)"
+                                echo "🔍 Intentando obtener más información..."
+                                curl -v http://localhost:${DVWA_PORT}/ || echo "Curl falló completamente"
                                 exit 1
                             fi
                             
                             # Verificar contenido de la página
-                            if curl -s http://localhost:${DVWA_PORT}/ | grep -q "DVWA"; then
-                                echo "✅ Contenido DVWA detectado correctamente"
+                            echo "📄 Verificando contenido de la página..."
+                            CONTENT_CHECK=$(curl -s http://localhost:${DVWA_PORT}/ | grep -c "DVWA" || echo "0")
+                            if [ "$CONTENT_CHECK" -gt "0" ]; then
+                                echo "✅ Contenido DVWA detectado correctamente ($CONTENT_CHECK coincidencias)"
                             else
                                 echo "❌ Error: Contenido DVWA no encontrado"
+                                echo "📄 Primeras líneas de la respuesta:"
+                                curl -s http://localhost:${DVWA_PORT}/ | head -10
                                 exit 1
                             fi
                             
-                            # Verificar logs del contenedor
-                            echo "📋 Últimos logs del contenedor:"
-                            docker logs --tail 10 ${DVWA_CONTAINER}
+                            # Verificar funcionalidad básica de la aplicación
+                            echo "🔧 Verificando funcionalidad básica..."
+                            if curl -s http://localhost:${DVWA_PORT}/setup.php | grep -q "setup"; then
+                                echo "✅ Página de setup accesible"
+                            else
+                                echo "⚠️ Página de setup no accesible (puede ser normal si ya está configurada)"
+                            fi
                             
-                            # Verificar estado de los contenedores
-                            echo "📊 Estado de los contenedores:"
-                            docker ps --filter "name=${DVWA_CONTAINER}" --filter "name=${MYSQL_CONTAINER}"
+                            # Verificar logs del contenedor
+                            echo "📋 Últimos logs del contenedor DVWA:"
+                            docker logs --tail 15 ${DVWA_CONTAINER}
+                            
+                            echo "📋 Últimos logs del contenedor MySQL:"
+                            docker logs --tail 10 ${MYSQL_CONTAINER}
+                            
+                            # Verificar estado final de los contenedores
+                            echo "📊 Estado final de los contenedores:"
+                            docker ps --filter "name=${DVWA_CONTAINER}" --filter "name=${MYSQL_CONTAINER}" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+                            
+                            echo "✅ Todas las verificaciones de salud completadas exitosamente"
                         '''
                     } catch (Exception e) {
-                        error "❌ Error en verificaciones de salud: ${e.getMessage()}"
+                        echo "❌ Error en verificaciones de salud: ${e.getMessage()}"
+                        echo "🔍 Ejecutando diagnóstico de emergencia..."
+                        sh '''
+                            echo "=== DIAGNÓSTICO DE EMERGENCIA ==="
+                            ./diagnose-containers.sh || echo "Diagnóstico de emergencia completado"
+                            echo "=== FIN DIAGNÓSTICO DE EMERGENCIA ==="
+                        '''
+                        error "❌ Las verificaciones de salud fallaron. Consulte los logs para más detalles."
                     }
                 }
             }
