@@ -26,25 +26,25 @@ pipeline {
                 echo 'Creando el Dockerfile para DVWA...'
                 dir('dvwa') {
                     sh '''
-                            cat <<EOF > Dockerfile
-                            FROM php:7.4-apache
-                            RUN a2enmod rewrite
-                            RUN apt-get update && apt-get install -y \
-                                libpng-dev \
-                                libjpeg62-turbo-dev \
-                                libfreetype6-dev \
-                                build-essential \
-                                libpq-dev \
-                            && docker-php-ext-install pdo pdo_mysql mysqli gd
-                            RUN docker-php-ext-install mysqli pdo pdo_mysql
-                            COPY . /var/www/html/
-                            RUN mkdir -p /var/www/html/hackable/uploads \
-                            && chmod 777 /var/www/html/hackable/uploads
-                            RUN mkdir -p /var/www/html/external/ \
-                            && chmod 777 /var/www/html/external/
-                            RUN mkdir -p /var/www/html/external/phpids/0.6/lib/IDS/tmp/ \
-                            && chmod 777 /var/www/html/external/phpids/0.6/lib/IDS/tmp/
-                            EOF
+cat <<EOF > Dockerfile
+FROM php:7.4-apache
+RUN a2enmod rewrite
+RUN apt-get update && apt-get install -y \
+    libpng-dev \
+    libjpeg62-turbo-dev \
+    libfreetype6-dev \
+    build-essential \
+    libpq-dev \
+&& docker-php-ext-install pdo pdo_mysql mysqli gd
+RUN docker-php-ext-install mysqli pdo pdo_mysql
+COPY . /var/www/html/
+RUN mkdir -p /var/www/html/hackable/uploads \
+&& chmod 777 /var/www/html/hackable/uploads
+RUN mkdir -p /var/www/html/external/ \
+&& chmod 777 /var/www/html/external/
+RUN mkdir -p /var/www/html/external/phpids/0.6/lib/IDS/tmp/ \
+&& chmod 777 /var/www/html/external/phpids/0.6/lib/IDS/tmp/
+EOF
                     '''
                 }
             }
@@ -86,3 +86,4 @@ pipeline {
         }
     }
 }
+
