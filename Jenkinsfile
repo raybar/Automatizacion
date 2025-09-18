@@ -67,27 +67,31 @@ EOF
                     sh 'docker build -t dvwa-image .'
                 }
 
-                sh 'docker run -d --name dvwa-app -p 80:80 dvwa-image'
+                sh 'docker run -d --name dvwa-app dvwa-image'
                 sleep 30
             }
         }
 
+    stages {
         stage('Análisis Dinámico con OWASP ZAP') {
             steps {
                 script {
                     echo 'Iniciando el escaneo dinámico con OWASP ZAP...'
-                    sh 'docker run --rm -v $(pwd):/zap/wrk/:rw ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py -t http://host.docker.internal:80 -r zap-report.html'
+                    // 1. Monta el volumen y especifica la ruta completa del reporte
+                    // 2. Si ZAP y tu app están en la misma red Docker, usa el nombre del servicio de la app
+                    sh 'docker run --rm -v $(pwd):/zap/wrk/:rw ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py -t http://dvwa-app:80 -r /zap/wrk/zap-report.html'
                 }
             }
         }
-
         stage('Reportes') {
             steps {
                 echo 'Archivando los reportes de análisis...'
+                // El archivo ahora se genera en el directorio del workspace, por lo que este paso funcionará
                 archiveArtifacts artifacts: 'zap-report.html', fingerprint: true
             }
         }
     }
+}
 
     post {
         always {
@@ -98,6 +102,7 @@ EOF
         }
     }
 }
+
 
 
 
