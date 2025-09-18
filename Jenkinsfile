@@ -5,6 +5,7 @@ pipeline {
             steps {
                 echo 'Clonando el repositorio de la aplicación DVWA...'
                 git url: 'https://github.com/raybar/Automatizacion.git', branch: 'master'
+                sh 'ls -R'
             }
         }
         stage('Análisis Estático con SonarQube') {
@@ -86,4 +87,5 @@ EOF
         }
     }
 }
+
 
