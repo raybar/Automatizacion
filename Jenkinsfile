@@ -1,6 +1,5 @@
 pipeline {
     agent any
-
     stages {
         stage('Clonar Repositorio') {
             steps {
@@ -8,8 +7,7 @@ pipeline {
                 git url: 'https://github.com/raybar/Automatizacion.git', branch: 'master'
             }
         }
-
-     stage('Análisis Estático con SonarQube') {
+        stage('Análisis Estático con SonarQube') {
             steps {
                 echo 'Iniciando análisis estático con el servidor local...'
                 // Usamos withCredentials para acceder de forma segura al token
@@ -25,7 +23,6 @@ pipeline {
                 }
             }
         }
-
         stage('Crear Dockerfile') {
             steps {
                 echo 'Creando el Dockerfile para DVWA...'
@@ -56,22 +53,18 @@ pipeline {
                 }
             }
         }
-
         stage('Construir y Desplegar Aplicación') {
             steps {
                 echo 'Construyendo y ejecutando el contenedor de la aplicación DVWA...'
                 sh 'docker stop dvwa-app || true'
                 sh 'docker rm dvwa-app || true'
-
                 dir('dvwa') {
                     sh 'docker build -t dvwa-image .'
                 }
-
                 sh 'docker run -d --name dvwa-app dvwa-image'
                 sleep 30
             }
         }
-        
         stage('Análisis Dinámico con OWASP ZAP') {
             steps {
                 script {
@@ -89,13 +82,12 @@ pipeline {
                 archiveArtifacts artifacts: 'zap-report.html', fingerprint: true
             }
         }
-
-    post {
-        always {
-            echo 'Limpiando el contenedor y los archivos temporales...'
-            sh 'docker stop dvwa-app || true'
-            sh 'docker rm dvwa-app || true'
-            sh 'rm -f ./dvwa/Dockerfile || true'
+        post {
+            always {
+                echo 'Limpiando el contenedor y los archivos temporales...'
+                sh 'docker stop dvwa-app || true'
+                sh 'docker rm dvwa-app || true'
+                sh 'rm -f ./dvwa/Dockerfile || true'
+            }
         }
     }
-}
