@@ -33,7 +33,6 @@ pipeline {
                     sh '''
                         # Verificar si las herramientas están disponibles
                         which curl || echo "⚠️ curl no está disponible"
-                        which jq || echo "⚠️ jq no está disponible"
                         which git || echo "⚠️ git no está disponible"
                     '''
                     
@@ -308,9 +307,16 @@ CMD ["/usr/local/bin/start-dvwa.sh"]
                             # Verificar que la imagen se creó correctamente
                             docker images | grep dvwa
                             
-                            # Análisis básico de la imagen
+                            # Análisis básico de la imagen (sin dependencia de jq)
                             echo "📊 Información de la imagen:"
-                            docker inspect ${DVWA_IMAGE} | jq '.[0].Config.ExposedPorts, .[0].Config.User, .[0].Config.Healthcheck'
+                            echo "🔍 Puertos expuestos:"
+                            docker inspect ${DVWA_IMAGE} --format='{{range $port, $config := .Config.ExposedPorts}}{{$port}} {{end}}'
+                            echo "👤 Usuario configurado:"
+                            docker inspect ${DVWA_IMAGE} --format='{{.Config.User}}'
+                            echo "🏥 Healthcheck configurado:"
+                            docker inspect ${DVWA_IMAGE} --format='{{if .Config.Healthcheck}}✅ Sí - Intervalo: {{.Config.Healthcheck.Interval}}, Timeout: {{.Config.Healthcheck.Timeout}}{{else}}❌ No configurado{{end}}'
+                            echo "📏 Tamaño de la imagen:"
+                            docker images ${DVWA_IMAGE} --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
                         '''
                     } catch (Exception e) {
                         error "❌ Error al construir la imagen Docker: ${e.getMessage()}"
