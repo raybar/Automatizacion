@@ -71,8 +71,7 @@ EOF
                 sleep 30
             }
         }
-
-    stages {
+        
         stage('Análisis Dinámico con OWASP ZAP') {
             steps {
                 script {
@@ -90,8 +89,6 @@ EOF
                 archiveArtifacts artifacts: 'zap-report.html', fingerprint: true
             }
         }
-    }
-}
 
     post {
         always {
