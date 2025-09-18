@@ -58,7 +58,7 @@ EOF
                 dir('dvwa') {
                     sh 'docker build -t dvwa-image .'
                 }
-                sh 'docker run -d --name dvwa-app dvwa-image'
+                sh 'docker run -d --network zap-net --name dvwa-app dvwa-image'
                 sleep 30
             }
         }
@@ -66,8 +66,7 @@ EOF
             steps {
                 script {
                     echo 'Iniciando el escaneo dinámico con OWASP ZAP...'
-                    sh 'docker run --rm -v $(pwd):/zap/wrk/:rw ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py -t http://dvwa-app:80 -r /zap/wrk/zap-report.html'
-                    sh 'ls -R $(pwd)'
+                    sh 'docker run --rm --network zap-net -v $(pwd):/zap/wrk/:rw ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py -t http://dvwa-app:80 -r /zap/wrk/zap-report.html'
                 }
             }
         }
@@ -89,6 +88,7 @@ EOF
         }
     }
 }
+
 
 
 
