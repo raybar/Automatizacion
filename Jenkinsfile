@@ -1,10 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'docker:dind'
-            args '--privileged -v /var/run/docker.sock:/var/run/docker.sock'
-        }
-    }
+    agent any
     
     environment {
         // Variables de entorno para el pipeline
@@ -30,15 +25,17 @@ pipeline {
             steps {
                 echo "🚀 Iniciando pipeline DevSecOps para DVWA - Build ${BUILD_TIMESTAMP}"
                 script {
-                    // Instalar herramientas necesarias
-                    sh '''
-                        apk update
-                        apk add --no-cache curl jq git bash mysql-client
-                    '''
-                    
                     // Verificar que Docker esté disponible
                     sh 'docker --version'
                     sh 'docker compose version'
+                    
+                    // Verificar herramientas necesarias
+                    sh '''
+                        # Verificar si las herramientas están disponibles
+                        which curl || echo "⚠️ curl no está disponible"
+                        which jq || echo "⚠️ jq no está disponible"
+                        which git || echo "⚠️ git no está disponible"
+                    '''
                     
                     // Crear redes si no existen
                     sh '''
