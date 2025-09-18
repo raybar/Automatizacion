@@ -65,24 +65,77 @@ pipeline {
                 echo '🔍 Iniciando análisis estático con SonarQube...'
                 script {
                     try {
-                        // Usar imagen Docker de SonarQube Scanner
+                        // Usar imagen Docker de SonarQube Scanner con conectividad al host
                         sh '''
-                            docker run --rm \
-                                --network ${DVWA_NETWORK} \
-                                -v $(pwd):/usr/src \
-                                -e SONAR_HOST_URL=http://sonarqube:9000 \
-                                -e SONAR_SCANNER_OPTS="-Dsonar.projectKey=DVWA-Proyecto-${BUILD_TIMESTAMP}" \
-                                sonarsource/sonar-scanner-cli:latest \
-                                sonar-scanner \
-                                    -Dsonar.projectName="DVWA Security Analysis" \
-                                    -Dsonar.projectVersion=${BUILD_NUMBER} \
-                                    -Dsonar.sources=./dvwa \
-                                    -Dsonar.exclusions="**/*.jpg,**/*.png,**/*.gif,**/*.pdf" \
-                                    -Dsonar.php.coverage.reportPaths=coverage.xml || echo "SonarQube análisis completado con advertencias"
+                            # Verificar conectividad con SonarQube
+                            if curl -s --connect-timeout 5 http://localhost:9000/api/system/status > /dev/null; then
+                                echo "✅ SonarQube está disponible, ejecutando análisis..."
+                                docker run --rm \
+                                    --add-host=host.docker.internal:host-gateway \
+                                    -v $(pwd):/usr/src \
+                                    -e SONAR_HOST_URL=http://host.docker.internal:9000 \
+                                    -e SONAR_SCANNER_OPTS="-Dsonar.projectKey=DVWA-Proyecto-${BUILD_TIMESTAMP}" \
+                                    sonarsource/sonar-scanner-cli:latest \
+                                    sonar-scanner \
+                                        -Dsonar.projectName="DVWA Security Analysis" \
+                                        -Dsonar.projectVersion=${BUILD_NUMBER} \
+                                        -Dsonar.sources=./dvwa \
+                                        -Dsonar.exclusions="**/*.jpg,**/*.png,**/*.gif,**/*.pdf" \
+                                        -Dsonar.php.coverage.reportPaths=coverage.xml
+                            else
+                                echo "⚠️ SonarQube no está disponible, omitiendo análisis estático"
+                                echo "Para habilitar SonarQube, asegúrese de que esté ejecutándose en localhost:9000"
+                            fi
                         '''
                         
-                        // Esperar a que SonarQube procese los resultados
-                        sleep(time: 10, unit: 'SECONDS')
+                        // Análisis estático básico alternativo
+                        echo "🔍 Ejecutando análisis estático básico..."
+                        sh '''
+                            # Crear directorio para reportes de análisis
+                            mkdir -p static-analysis
+                            
+                            # Análisis básico de archivos PHP
+                            echo "📋 Análisis de archivos PHP:"
+                            find ./dvwa -name "*.php" -type f | head -20 > static-analysis/php-files.txt
+                            echo "Archivos PHP encontrados: $(wc -l < static-analysis/php-files.txt)"
+                            
+                            # Buscar patrones de seguridad básicos
+                            echo "🔒 Buscando patrones de seguridad potencialmente problemáticos:"
+                            
+                            # Buscar uso de funciones peligrosas
+                            grep -r "eval\\|exec\\|system\\|shell_exec\\|passthru" ./dvwa --include="*.php" > static-analysis/dangerous-functions.txt 2>/dev/null || echo "No se encontraron funciones peligrosas"
+                            
+                            # Buscar SQL directo (posibles inyecciones)
+                            grep -r "SELECT\\|INSERT\\|UPDATE\\|DELETE" ./dvwa --include="*.php" | grep -v "//\\|#\\|\\*" > static-analysis/sql-queries.txt 2>/dev/null || echo "No se encontraron consultas SQL directas"
+                            
+                            # Buscar inclusiones de archivos dinámicas
+                            grep -r "include\\|require" ./dvwa --include="*.php" | grep "\\$" > static-analysis/dynamic-includes.txt 2>/dev/null || echo "No se encontraron inclusiones dinámicas"
+                            
+                            # Generar reporte básico
+                            cat > static-analysis/basic-security-report.txt << EOF
+=== REPORTE DE ANÁLISIS ESTÁTICO BÁSICO ===
+Timestamp: $(date)
+Proyecto: DVWA Security Analysis
+
+=== ESTADÍSTICAS ===
+Archivos PHP analizados: $(find ./dvwa -name "*.php" -type f | wc -l)
+Funciones peligrosas encontradas: $(wc -l < static-analysis/dangerous-functions.txt 2>/dev/null || echo "0")
+Consultas SQL directas: $(wc -l < static-analysis/sql-queries.txt 2>/dev/null || echo "0")
+Inclusiones dinámicas: $(wc -l < static-analysis/dynamic-includes.txt 2>/dev/null || echo "0")
+
+=== RECOMENDACIONES ===
+- Revisar el uso de funciones peligrosas como eval(), exec(), system()
+- Validar todas las consultas SQL para prevenir inyecciones
+- Sanitizar todas las inclusiones dinámicas de archivos
+- Implementar validación de entrada en todos los formularios
+EOF
+                            
+                            echo "✅ Análisis estático básico completado"
+                            ls -la static-analysis/
+                        '''
+                        
+                        // Esperar a que SonarQube procese los resultados si está disponible
+                        sleep(time: 5, unit: 'SECONDS')
                         echo '✅ Análisis estático completado'
                         
                     } catch (Exception e) {
@@ -418,6 +471,11 @@ CMD ["/usr/local/bin/start-dvwa.sh"]
                             
                             # Mover reportes a directorio organizado
                             mv zap-report-${BUILD_TIMESTAMP}.* reports/ 2>/dev/null || echo "No se encontraron algunos reportes ZAP"
+                            
+                            # Mover reportes de análisis estático básico
+                            if [ -d "static-analysis" ]; then
+                                mv static-analysis/* reports/ 2>/dev/null || echo "No se encontraron reportes de análisis estático"
+                            fi
                             
                             # Generar reporte de estado del despliegue
                             cat > reports/deployment-report-${BUILD_TIMESTAMP}.txt << EOF
