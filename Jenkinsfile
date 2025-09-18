@@ -67,6 +67,7 @@ EOF
                 script {
                     echo 'Iniciando el escaneo dinámico con OWASP ZAP...'
                     sh 'docker run --rm -v $(pwd):/zap/wrk/:rw ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py -t http://dvwa-app:80 -r /zap/wrk/zap-report.html'
+                    sh 'sudo chown jenkins:jenkins zap-report.html'
                 }
             }
         }
@@ -87,5 +88,6 @@ EOF
         }
     }
 }
+
 
 
