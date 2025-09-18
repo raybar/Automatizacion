@@ -75,7 +75,7 @@ EOF
             steps {
                 echo 'Archivando los reportes de análisis...'
                 sh 'ls -R'
-                archiveArtifacts artifacts: 'zap-report.html', fingerprint: true
+                archiveArtifacts artifacts: '/workspace/DevSecOps_Workshop_Maestria/zap-report.html', fingerprint: true
             }
         }
     }
@@ -89,6 +89,7 @@ EOF
         }
     }
 }
+
 
 
 
