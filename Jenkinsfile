@@ -1,117 +1,506 @@
 pipeline {
     agent any
+    
+    environment {
+        // Variables de entorno para el pipeline
+        DVWA_IMAGE = 'dvwa:latest'
+        DVWA_CONTAINER = 'dvwa-app'
+        MYSQL_CONTAINER = 'dvwa-mysql'
+        DVWA_NETWORK = 'dvwa-network'
+        ZAP_NETWORK = 'zap-net'
+        DVWA_PORT = '80'
+        BUILD_TIMESTAMP = "${new Date().format('yyyyMMdd-HHmmss')}"
+    }
+    
+    options {
+        // Configuraciones del pipeline
+        timeout(time: 30, unit: 'MINUTES')
+        retry(2)
+        skipDefaultCheckout(false)
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+    }
+    
     stages {
-        stage('Clonar Repositorio') {
+        stage('Preparación del Entorno') {
             steps {
-                echo 'Clonando el repositorio de la aplicación DVWA...'
-                git url: 'https://github.com/raybar/Automatizacion.git', branch: 'master'
-                sh 'ls -R'
-            }
-        }
-        stage('Análisis Estático con SonarQube') {
-            steps {
-                echo 'Iniciando análisis estático con el servidor local...'
-                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                    dir('dvwa') {
-                        sh '''/usr/local/bin/sonar-scanner \
-                            -Dsonar.projectKey=DVWA-Proyecto \
-                            -Dsonar.sources=. \
-                            -Dsonar.host.url=http://sonarqube:9000 \
-                            -Dsonar.login=$SONAR_TOKEN'''
-                    }
-                }
-            }
-        }
-        stage('Crear Dockerfile') {
-            steps {
-                echo 'Creando el Dockerfile para DVWA...'
-                dir('dvwa') {
+                echo "🚀 Iniciando pipeline DevSecOps para DVWA - Build ${BUILD_TIMESTAMP}"
+                script {
+                    // Verificar que Docker esté disponible
+                    sh 'docker --version'
+                    sh 'docker-compose --version'
+                    
+                    // Crear redes si no existen
                     sh '''
-cat <<EOF > Dockerfile
-FROM php:7.4-apache
-USER root
-RUN a2enmod rewrite
-RUN apt-get update && apt-get install -y \
-    libpng-dev \
-    libjpeg62-turbo-dev \
-    libfreetype6-dev \
-    build-essential \
-    libpq-dev \
-&& docker-php-ext-install pdo pdo_mysql mysqli gd
-
-# Copia los archivos de la aplicación al directorio del servidor web
-COPY . /var/www/html/
-
-# Renombra el archivo de configuración de DVWA
-RUN mv /var/www/html/config/config.inc.php.dist /var/www/html/config/config.inc.php
-
-# Establece la propiedad y los permisos de los archivos de forma explícita
-RUN chown -R www-data:www-data /var/www/html/
-RUN chmod -R 755 /var/www/html/
-
-RUN mkdir -p /var/www/html/hackable/uploads \
-&& chmod 775 /var/www/html/hackable/uploads
-RUN mkdir -p /var/www/html/external/ \
-&& chmod 775 /var/www/html/external/
-RUN mkdir -p /var/www/html/external/phpids/0.6/lib/IDS/tmp/ \
-&& chmod 775 /var/www/html/external/phpids/0.6/lib/IDS/tmp/
-USER www-data
-EOF
+                        docker network create ${DVWA_NETWORK} || echo "Red ${DVWA_NETWORK} ya existe"
+                        docker network create ${ZAP_NETWORK} || echo "Red ${ZAP_NETWORK} ya existe"
                     '''
                 }
             }
         }
-        stage('Construir y Desplegar Aplicación') {
+        
+        stage('Clonar Repositorio') {
             steps {
-                echo 'Construyendo y ejecutando el contenedor de la aplicación DVWA...'
-                sh 'docker stop dvwa-app || true'
-                sh 'docker rm dvwa-app || true'
-                dir('dvwa') {
-                    sh 'docker build -t dvwa-image .'
-                }
-                sh 'docker run -d --network zap-net -p 80:80 --name dvwa-app dvwa-image'
-                sleep 30
+                echo '📥 Clonando el repositorio de la aplicación DVWA...'
+                git url: 'https://github.com/raybar/Automatizacion.git', branch: 'master'
+                
+                // Verificar estructura del proyecto
+                sh '''
+                    echo "📁 Estructura del proyecto:"
+                    find . -maxdepth 2 -type f -name "*.php" | head -10
+                    ls -la
+                '''
             }
         }
+        
+        stage('Análisis Estático con SonarQube') {
+            steps {
+                echo '🔍 Iniciando análisis estático con SonarQube...'
+                script {
+                    try {
+                        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                            dir('dvwa') {
+                                sh '''
+                                    /usr/local/bin/sonar-scanner \
+                                        -Dsonar.projectKey=DVWA-Proyecto-${BUILD_TIMESTAMP} \
+                                        -Dsonar.projectName="DVWA Security Analysis" \
+                                        -Dsonar.projectVersion=${BUILD_NUMBER} \
+                                        -Dsonar.sources=. \
+                                        -Dsonar.exclusions="**/*.jpg,**/*.png,**/*.gif,**/*.pdf" \
+                                        -Dsonar.php.coverage.reportPaths=coverage.xml \
+                                        -Dsonar.host.url=http://sonarqube:9000 \
+                                        -Dsonar.login=$SONAR_TOKEN
+                                '''
+                            }
+                        }
+                        
+                        // Esperar a que SonarQube procese los resultados
+                        sleep(time: 10, unit: 'SECONDS')
+                        echo '✅ Análisis estático completado'
+                        
+                    } catch (Exception e) {
+                        echo "⚠️ Error en análisis estático: ${e.getMessage()}"
+                        currentBuild.result = 'UNSTABLE'
+                    }
+                }
+            }
+        }
+        
+        stage('Crear y Optimizar Dockerfile') {
+            steps {
+                echo '🐳 Creando Dockerfile optimizado para DVWA...'
+                script {
+                    // Crear Dockerfile mejorado con mejores prácticas de seguridad
+                    writeFile file: 'Dockerfile', text: '''
+# Dockerfile optimizado para DVWA con mejores prácticas de seguridad
+FROM php:8.1-apache
+
+# Metadatos
+LABEL maintainer="DevSecOps Team"
+LABEL version="1.0"
+LABEL description="DVWA - Damn Vulnerable Web Application para testing de seguridad"
+
+# Variables de entorno
+ENV DEBIAN_FRONTEND=noninteractive
+ENV APACHE_DOCUMENT_ROOT=/var/www/html
+ENV MYSQL_HOST=mysql
+ENV MYSQL_DATABASE=dvwa
+ENV MYSQL_USER=root
+ENV MYSQL_PASSWORD=dvwa
+
+# Actualizar sistema y instalar dependencias necesarias
+RUN apt-get update && apt-get install -y --no-install-recommends \\
+    libpng-dev \\
+    libjpeg62-turbo-dev \\
+    libfreetype6-dev \\
+    libzip-dev \\
+    libonig-dev \\
+    default-mysql-client \\
+    curl \\
+    wget \\
+    && rm -rf /var/lib/apt/lists/*
+
+# Instalar extensiones PHP necesarias
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \\
+    && docker-php-ext-install -j$(nproc) \\
+        pdo \\
+        pdo_mysql \\
+        mysqli \\
+        gd \\
+        zip \\
+        mbstring
+
+# Habilitar módulos de Apache
+RUN a2enmod rewrite headers
+
+# Crear usuario no privilegiado para la aplicación
+RUN groupadd -r dvwa && useradd -r -g dvwa dvwa
+
+# Copiar archivos de la aplicación
+COPY . ${APACHE_DOCUMENT_ROOT}/
+
+# Configurar DVWA
+RUN if [ -f ${APACHE_DOCUMENT_ROOT}/config/config.inc.php.dist ]; then \\
+        cp ${APACHE_DOCUMENT_ROOT}/config/config.inc.php.dist ${APACHE_DOCUMENT_ROOT}/config/config.inc.php; \\
+    fi
+
+# Configurar permisos de seguridad
+RUN chown -R www-data:www-data ${APACHE_DOCUMENT_ROOT} \\
+    && find ${APACHE_DOCUMENT_ROOT} -type d -exec chmod 755 {} \\; \\
+    && find ${APACHE_DOCUMENT_ROOT} -type f -exec chmod 644 {} \\;
+
+# Crear directorios necesarios con permisos específicos
+RUN mkdir -p ${APACHE_DOCUMENT_ROOT}/hackable/uploads \\
+    && chmod 775 ${APACHE_DOCUMENT_ROOT}/hackable/uploads \\
+    && mkdir -p ${APACHE_DOCUMENT_ROOT}/external/phpids/0.6/lib/IDS/tmp \\
+    && chmod 775 ${APACHE_DOCUMENT_ROOT}/external/phpids/0.6/lib/IDS/tmp
+
+# Configuración de seguridad de Apache
+RUN echo "ServerTokens Prod" >> /etc/apache2/apache2.conf \\
+    && echo "ServerSignature Off" >> /etc/apache2/apache2.conf
+
+# Script de inicio para verificar conectividad con MySQL
+COPY <<EOF /usr/local/bin/start-dvwa.sh
+#!/bin/bash
+set -e
+
+echo "🔄 Esperando a que MySQL esté disponible..."
+until mysqladmin ping -h"\$MYSQL_HOST" -u"\$MYSQL_USER" -p"\$MYSQL_PASSWORD" --silent; do
+    echo "⏳ MySQL no está listo, esperando..."
+    sleep 2
+done
+
+echo "✅ MySQL está disponible, iniciando Apache..."
+exec apache2-foreground
+EOF
+
+RUN chmod +x /usr/local/bin/start-dvwa.sh
+
+# Exponer puerto
+EXPOSE 80
+
+# Verificación de salud
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \\
+    CMD curl -f http://localhost/ || exit 1
+
+# Cambiar a usuario no privilegiado para ejecución
+USER www-data
+
+# Comando de inicio
+CMD ["/usr/local/bin/start-dvwa.sh"]
+'''
+                }
+            }
+        }
+        
+        stage('Análisis de Seguridad del Dockerfile') {
+            steps {
+                echo '🔒 Analizando seguridad del Dockerfile...'
+                script {
+                    try {
+                        // Análisis básico de seguridad del Dockerfile
+                        sh '''
+                            echo "📋 Verificaciones de seguridad del Dockerfile:"
+                            
+                            # Verificar que no se ejecute como root
+                            if grep -q "USER root" Dockerfile && ! grep -q "USER www-data" Dockerfile; then
+                                echo "⚠️ ADVERTENCIA: El contenedor podría ejecutarse como root"
+                            else
+                                echo "✅ Usuario no privilegiado configurado"
+                            fi
+                            
+                            # Verificar HEALTHCHECK
+                            if grep -q "HEALTHCHECK" Dockerfile; then
+                                echo "✅ Healthcheck configurado"
+                            else
+                                echo "⚠️ ADVERTENCIA: No se encontró HEALTHCHECK"
+                            fi
+                            
+                            # Verificar limpieza de cache
+                            if grep -q "rm -rf /var/lib/apt/lists" Dockerfile; then
+                                echo "✅ Limpieza de cache APT configurada"
+                            else
+                                echo "⚠️ ADVERTENCIA: Cache APT no limpiado"
+                            fi
+                        '''
+                    } catch (Exception e) {
+                        echo "⚠️ Error en análisis de Dockerfile: ${e.getMessage()}"
+                    }
+                }
+            }
+        }
+        
+        stage('Construir Imagen Docker') {
+            steps {
+                echo '🔨 Construyendo imagen Docker de DVWA...'
+                script {
+                    try {
+                        sh '''
+                            # Construir imagen con etiquetas múltiples
+                            docker build \\
+                                --tag ${DVWA_IMAGE} \\
+                                --tag dvwa:${BUILD_TIMESTAMP} \\
+                                --label "build.number=${BUILD_NUMBER}" \\
+                                --label "build.timestamp=${BUILD_TIMESTAMP}" \\
+                                --no-cache \\
+                                .
+                            
+                            # Verificar que la imagen se creó correctamente
+                            docker images | grep dvwa
+                            
+                            # Análisis básico de la imagen
+                            echo "📊 Información de la imagen:"
+                            docker inspect ${DVWA_IMAGE} | jq '.[0].Config.ExposedPorts, .[0].Config.User, .[0].Config.Healthcheck'
+                        '''
+                    } catch (Exception e) {
+                        error "❌ Error al construir la imagen Docker: ${e.getMessage()}"
+                    }
+                }
+            }
+        }
+        
+        stage('Preparar Base de Datos') {
+            steps {
+                echo '🗄️ Preparando base de datos MySQL...'
+                script {
+                    try {
+                        sh '''
+                            # Detener y limpiar contenedor MySQL existente
+                            docker stop ${MYSQL_CONTAINER} || true
+                            docker rm ${MYSQL_CONTAINER} || true
+                            
+                            # Iniciar MySQL
+                            docker run -d \\
+                                --name ${MYSQL_CONTAINER} \\
+                                --network ${DVWA_NETWORK} \\
+                                --network ${ZAP_NETWORK} \\
+                                -e MYSQL_ROOT_PASSWORD=dvwa \\
+                                -e MYSQL_DATABASE=dvwa \\
+                                -e MYSQL_USER=dvwa \\
+                                -e MYSQL_PASSWORD=dvwa \\
+                                --restart unless-stopped \\
+                                mysql:8.0 \\
+                                --default-authentication-plugin=mysql_native_password
+                            
+                            # Esperar a que MySQL esté listo
+                            echo "⏳ Esperando a que MySQL esté disponible..."
+                            timeout 60 bash -c 'until docker exec ${MYSQL_CONTAINER} mysqladmin ping -h localhost --silent; do sleep 2; done'
+                            echo "✅ MySQL está listo"
+                        '''
+                    } catch (Exception e) {
+                        error "❌ Error al preparar la base de datos: ${e.getMessage()}"
+                    }
+                }
+            }
+        }
+        
+        stage('Desplegar Aplicación DVWA') {
+            steps {
+                echo '🚀 Desplegando aplicación DVWA...'
+                script {
+                    try {
+                        sh '''
+                            # Detener y limpiar contenedor DVWA existente
+                            docker stop ${DVWA_CONTAINER} || true
+                            docker rm ${DVWA_CONTAINER} || true
+                            
+                            # Desplegar DVWA
+                            docker run -d \\
+                                --name ${DVWA_CONTAINER} \\
+                                --network ${DVWA_NETWORK} \\
+                                --network ${ZAP_NETWORK} \\
+                                -p ${DVWA_PORT}:80 \\
+                                -e MYSQL_HOST=${MYSQL_CONTAINER} \\
+                                -e MYSQL_DATABASE=dvwa \\
+                                -e MYSQL_USER=root \\
+                                -e MYSQL_PASSWORD=dvwa \\
+                                --restart unless-stopped \\
+                                ${DVWA_IMAGE}
+                            
+                            echo "✅ Contenedor DVWA desplegado"
+                        '''
+                    } catch (Exception e) {
+                        error "❌ Error al desplegar DVWA: ${e.getMessage()}"
+                    }
+                }
+            }
+        }
+        
+        stage('Verificaciones de Salud') {
+            steps {
+                echo '🏥 Ejecutando verificaciones de salud...'
+                script {
+                    try {
+                        sh '''
+                            # Esperar a que la aplicación esté lista
+                            echo "⏳ Esperando a que DVWA esté disponible..."
+                            timeout 120 bash -c 'until curl -f http://localhost:${DVWA_PORT}/ >/dev/null 2>&1; do sleep 5; done'
+                            
+                            # Verificaciones de salud
+                            echo "🔍 Ejecutando verificaciones de salud:"
+                            
+                            # Verificar respuesta HTTP
+                            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${DVWA_PORT}/)
+                            if [ "$HTTP_STATUS" = "200" ]; then
+                                echo "✅ Aplicación responde correctamente (HTTP $HTTP_STATUS)"
+                            else
+                                echo "❌ Error: Aplicación no responde correctamente (HTTP $HTTP_STATUS)"
+                                exit 1
+                            fi
+                            
+                            # Verificar contenido de la página
+                            if curl -s http://localhost:${DVWA_PORT}/ | grep -q "DVWA"; then
+                                echo "✅ Contenido DVWA detectado correctamente"
+                            else
+                                echo "❌ Error: Contenido DVWA no encontrado"
+                                exit 1
+                            fi
+                            
+                            # Verificar logs del contenedor
+                            echo "📋 Últimos logs del contenedor:"
+                            docker logs --tail 10 ${DVWA_CONTAINER}
+                            
+                            # Verificar estado de los contenedores
+                            echo "📊 Estado de los contenedores:"
+                            docker ps --filter "name=${DVWA_CONTAINER}" --filter "name=${MYSQL_CONTAINER}"
+                        '''
+                    } catch (Exception e) {
+                        error "❌ Error en verificaciones de salud: ${e.getMessage()}"
+                    }
+                }
+            }
+        }
+        
         stage('Análisis Dinámico con OWASP ZAP') {
             steps {
+                echo '🕷️ Iniciando análisis dinámico con OWASP ZAP...'
                 script {
-                    echo 'Iniciando el escaneo dinámico con OWASP ZAP...'
-                    sh 'docker run --rm --network zap-net -v $(pwd):/zap/wrk/:rw ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py -t http://dvwa-app -r /zap/wrk/zap-report.html'
+                    try {
+                        sh '''
+                            # Ejecutar escaneo ZAP con configuración mejorada
+                            docker run --rm \\
+                                --network ${ZAP_NETWORK} \\
+                                -v $(pwd):/zap/wrk/:rw \\
+                                ghcr.io/zaproxy/zaproxy:stable \\
+                                zap-full-scan.py \\
+                                -t http://${DVWA_CONTAINER}:80 \\
+                                -r /zap/wrk/zap-report-${BUILD_TIMESTAMP}.html \\
+                                -x /zap/wrk/zap-report-${BUILD_TIMESTAMP}.xml \\
+                                -J /zap/wrk/zap-report-${BUILD_TIMESTAMP}.json \\
+                                -m 10 \\
+                                -z "-config scanner.strength=MEDIUM"
+                            
+                            echo "✅ Análisis dinámico completado"
+                        '''
+                    } catch (Exception e) {
+                        echo "⚠️ Error en análisis dinámico: ${e.getMessage()}"
+                        currentBuild.result = 'UNSTABLE'
+                    }
                 }
             }
         }
-        stage('Reportes') {
+        
+        stage('Generar Reportes') {
             steps {
-                echo 'Archivando los reportes de análisis...'
-                sh 'ls -R'
-                archiveArtifacts artifacts: '/workspace/DevSecOps_Workshop_Maestria/zap-report.html', fingerprint: true
+                echo '📊 Generando y archivando reportes...'
+                script {
+                    try {
+                        sh '''
+                            # Crear directorio de reportes
+                            mkdir -p reports
+                            
+                            # Mover reportes a directorio organizado
+                            mv zap-report-${BUILD_TIMESTAMP}.* reports/ 2>/dev/null || echo "No se encontraron algunos reportes ZAP"
+                            
+                            # Generar reporte de estado del despliegue
+                            cat > reports/deployment-report-${BUILD_TIMESTAMP}.txt << EOF
+=== REPORTE DE DESPLIEGUE DVWA ===
+Timestamp: ${BUILD_TIMESTAMP}
+Build Number: ${BUILD_NUMBER}
+Estado: $(docker ps --filter "name=${DVWA_CONTAINER}" --format "table {{.Status}}" | tail -n +2)
+
+=== INFORMACIÓN DE CONTENEDORES ===
+$(docker ps --filter "name=${DVWA_CONTAINER}" --filter "name=${MYSQL_CONTAINER}" --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}")
+
+=== VERIFICACIONES DE SALUD ===
+HTTP Status: $(curl -s -o /dev/null -w "%{http_code}" http://localhost:${DVWA_PORT}/ || echo "Error")
+Aplicación Accesible: $(curl -s http://localhost:${DVWA_PORT}/ | grep -q "DVWA" && echo "✅ Sí" || echo "❌ No")
+
+=== LOGS RECIENTES ===
+$(docker logs --tail 5 ${DVWA_CONTAINER} 2>/dev/null || echo "No se pudieron obtener logs")
+EOF
+                            
+                            # Listar archivos generados
+                            echo "📁 Archivos de reporte generados:"
+                            ls -la reports/
+                        '''
+                        
+                        // Archivar artefactos
+                        archiveArtifacts artifacts: 'reports/**/*', fingerprint: true, allowEmptyArchive: true
+                        
+                    } catch (Exception e) {
+                        echo "⚠️ Error al generar reportes: ${e.getMessage()}"
+                        currentBuild.result = 'UNSTABLE'
+                    }
+                }
             }
         }
     }
-    // Bloque 'post' correcto: se encuentra al mismo nivel que 'stages'
+    
     post {
         always {
-            echo 'Limpiando el contenedor y los archivos temporales...'
-            sh 'docker stop dvwa-app || true'
-            sh 'docker rm dvwa-app || true'
-            sh 'rm -f ./dvwa/Dockerfile || true'
+            echo '🧹 Ejecutando limpieza post-build...'
+            script {
+                try {
+                    sh '''
+                        # Limpiar imágenes no utilizadas (mantener las actuales)
+                        docker image prune -f --filter "until=24h" || true
+                        
+                        # Mostrar estado final
+                        echo "📊 Estado final de contenedores:"
+                        docker ps --filter "name=${DVWA_CONTAINER}" --filter "name=${MYSQL_CONTAINER}"
+                        
+                        echo "💾 Uso de espacio en disco:"
+                        df -h | grep -E "(Filesystem|/dev/)"
+                    '''
+                } catch (Exception e) {
+                    echo "⚠️ Error en limpieza: ${e.getMessage()}"
+                }
+            }
+        }
+        
+        success {
+            echo '🎉 ¡Pipeline completado exitosamente!'
+            script {
+                sh '''
+                    echo "✅ DVWA desplegado correctamente en http://localhost:${DVWA_PORT}"
+                    echo "📊 Reportes disponibles en los artefactos del build"
+                    echo "🔍 Análisis de seguridad completados"
+                '''
+            }
+        }
+        
+        failure {
+            echo '❌ Pipeline falló. Ejecutando limpieza de emergencia...'
+            script {
+                try {
+                    sh '''
+                        # Limpieza de emergencia
+                        docker stop ${DVWA_CONTAINER} ${MYSQL_CONTAINER} || true
+                        docker rm ${DVWA_CONTAINER} ${MYSQL_CONTAINER} || true
+                        
+                        # Mostrar logs para debugging
+                        echo "🔍 Logs de debugging:"
+                        docker logs ${DVWA_CONTAINER} --tail 20 2>/dev/null || echo "No se pudieron obtener logs de DVWA"
+                        docker logs ${MYSQL_CONTAINER} --tail 20 2>/dev/null || echo "No se pudieron obtener logs de MySQL"
+                    '''
+                } catch (Exception e) {
+                    echo "⚠️ Error en limpieza de emergencia: ${e.getMessage()}"
+                }
+            }
+        }
+        
+        unstable {
+            echo '⚠️ Build marcado como inestable. Verificar reportes de análisis.'
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
