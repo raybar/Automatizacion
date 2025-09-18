@@ -29,6 +29,7 @@ pipeline {
                     sh '''
 cat <<EOF > Dockerfile
 FROM php:7.4-apache
+USER root
 RUN a2enmod rewrite
 RUN apt-get update && apt-get install -y \
     libpng-dev \
@@ -37,9 +38,13 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
 && docker-php-ext-install pdo pdo_mysql mysqli gd
+
+# Copia los archivos de la aplicación al directorio del servidor web
 COPY . /var/www/html/
-# Set the correct ownership for the web server user (www-data)
+
+# Establece la propiedad y los permisos de los archivos de forma explícita
 RUN chown -R www-data:www-data /var/www/html/
+RUN chmod -R 755 /var/www/html/
 
 RUN mkdir -p /var/www/html/hackable/uploads \
 && chmod 775 /var/www/html/hackable/uploads
@@ -47,6 +52,7 @@ RUN mkdir -p /var/www/html/external/ \
 && chmod 775 /var/www/html/external/
 RUN mkdir -p /var/www/html/external/phpids/0.6/lib/IDS/tmp/ \
 && chmod 775 /var/www/html/external/phpids/0.6/lib/IDS/tmp/
+USER www-data
 EOF
                     '''
                 }
@@ -90,6 +96,7 @@ EOF
         }
     }
 }
+
 
 
 
