@@ -47,7 +47,8 @@ RUN mkdir -p /var/www/html/external/ \
 && chmod 775 /var/www/html/external/
 RUN mkdir -p /var/www/html/external/phpids/0.6/lib/IDS/tmp/ \
 && chmod 775 /var/www/html/external/phpids/0.6/lib/IDS/tmp/
-EOF '''
+EOF
+                    '''
                 }
             }
         }
@@ -89,6 +90,7 @@ EOF '''
         }
     }
 }
+
 
 
 
