@@ -42,6 +42,9 @@ RUN apt-get update && apt-get install -y \
 # Copia los archivos de la aplicación al directorio del servidor web
 COPY . /var/www/html/
 
+# Renombra el archivo de configuración de DVWA
+RUN mv /var/www/html/config/config.inc.php.dist /var/www/html/config/config.inc.php
+
 # Establece la propiedad y los permisos de los archivos de forma explícita
 RUN chown -R www-data:www-data /var/www/html/
 RUN chmod -R 755 /var/www/html/
@@ -96,6 +99,7 @@ EOF
         }
     }
 }
+
 
 
 
