@@ -81,7 +81,7 @@ pipeline {
                                     -Dsonar.projectName="DVWA Security Analysis" \
                                     -Dsonar.projectVersion=${BUILD_NUMBER} \
                                     -Dsonar.login=$SONAR_TOKEN \
-                                    -Dsonar.sources=.,vulnerabilities,dvwa/includes \
+                                    -Dsonar.sources=. \
                                     -Dsonar.exclusions="**/*.jpg,**/*.png,**/*.gif,**/*.pdf,**/css/**,**/js/**,**/images/**,**/*.md,**/*.txt,**/*.sh,**/*.yml,**/*.yaml,**/docs/**,**/external/**,**/hackable/uploads/**" \
                                     -Dsonar.php.coverage.reportPaths=coverage.xml
                             else
