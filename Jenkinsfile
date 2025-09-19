@@ -1,6 +1,6 @@
 pipeline {
     agent any
-
+    
     environment {
         // Variables de entorno para el pipeline
         DVWA_IMAGE = 'dvwa:latest'
@@ -11,7 +11,7 @@ pipeline {
         DVWA_PORT = '80'
         BUILD_TIMESTAMP = "${new Date().format('yyyyMMdd-HHmmss')}"
     }
-
+    
     options {
         // Configuraciones del pipeline
         timeout(time: 30, unit: 'MINUTES')
@@ -19,7 +19,7 @@ pipeline {
         skipDefaultCheckout(false)
         buildDiscarder(logRotator(numToKeepStr: '10'))
     }
-
+    
     stages {
         stage('Preparación del Entorno') {
             steps {
@@ -28,14 +28,14 @@ pipeline {
                     // Verificar que Docker esté disponible
                     sh 'docker --version'
                     sh 'docker compose version'
-
+                    
                     // Verificar herramientas necesarias
                     sh '''
                         # Verificar si las herramientas están disponibles
                         which curl || echo "⚠️ curl no está disponible"
                         which git || echo "⚠️ git no está disponible"
                     '''
-
+                    
                     // Crear redes si no existen
                     sh '''
                         docker network create ${DVWA_NETWORK} || echo "Red ${DVWA_NETWORK} ya existe"
@@ -44,12 +44,12 @@ pipeline {
                 }
             }
         }
-
+        
         stage('Clonar Repositorio') {
             steps {
                 echo '📥 Clonando el repositorio de la aplicación DVWA...'
                 git url: 'https://github.com/raybar/Automatizacion.git', branch: 'master'
-
+                
                 // Verificar estructura del proyecto
                 sh '''
                     echo "📁 Estructura del proyecto:"
@@ -58,37 +58,43 @@ pipeline {
                 '''
             }
         }
-
+        
         stage('Análisis Estático con SonarQube') {
             steps {
                 echo '🔍 Iniciando análisis estático con SonarQube...'
-                // Usamos withCredentials para acceder de forma segura al token
-                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                    script {
+                script {
                     try {
                         // Usar imagen Docker de SonarQube Scanner con conectividad al host
                         sh '''
                             # Verificar conectividad con SonarQube
                             if curl -s --connect-timeout 5 http://sonarqube:9000/api/system/status > /dev/null; then
                                 echo "✅ SonarQube está disponible, ejecutando análisis..."
+                                
+                                # Verificar estructura de directorios
+                                ls -la
+                                
+                                # Ejecutar análisis de SonarQube con configuración corregida
                                 docker run --rm \
                                     --add-host=host.docker.internal:host-gateway \
                                     -v $(pwd):/usr/src \
+                                    -w /usr/src \
                                     -e SONAR_HOST_URL=http://host.docker.internal:9000 \
                                     sonarsource/sonar-scanner-cli:latest \
-                                    -Dsonar.projectKey=DVWA-Proyecto-${BUILD_TIMESTAMP} \
-                                    -Dsonar.projectName="DVWA Security Analysis" \
-                                    -Dsonar.projectVersion=${BUILD_NUMBER} \
-                                    -Dsonar.login=$SONAR_TOKEN \
-                                    -Dsonar.sources=.,vulnerabilities,dvwa/includes \
-                                    -Dsonar.exclusions="**/*.jpg,**/*.png,**/*.gif,**/*.pdf,**/css/**,**/js/**,**/images/**,**/*.md,**/*.txt,**/*.sh,**/*.yml,**/*.yaml,**/docs/**,**/external/**,**/hackable/uploads/**" \
-                                    -Dsonar.php.coverage.reportPaths=coverage.xml
+                                    sonar-scanner \
+                                        -Dsonar.projectKey=DVWA-Proyecto-${BUILD_ID} \
+                                        -Dsonar.projectName="DVWA Security Analysis" \
+                                        -Dsonar.projectVersion=${BUILD_NUMBER} \
+                                        -Dsonar.login=${SONAR_TOKEN} \
+                                        -Dsonar.sources=. \
+                                        -Dsonar.inclusions="**/*.php,**/*.js,**/*.html" \
+                                        -Dsonar.exclusions="**/*.jpg,**/*.png,**/*.gif,**/*.pdf,**/css/**,**/images/**,**/*.md,**/*.txt,**/*.sh,**/*.yml,**/*.yaml,**/docs/**,**/external/**,**/hackable/uploads/**,**/dvwa@tmp/**" \
+                                        -Dsonar.php.coverage.reportPaths=coverage.xml
                             else
                                 echo "⚠️ SonarQube no está disponible, omitiendo análisis estático"
                                 echo "Para habilitar SonarQube, asegúrese de que esté ejecutándose en localhost:9000"
                             fi
                         '''
-
+                        
                         // Análisis estático básico alternativo
                         echo "🔍 Ejecutando análisis estático básico..."
                         sh '''
@@ -134,20 +140,19 @@ EOF
                             echo "✅ Análisis estático básico completado"
                             ls -la static-analysis/
                         '''
-
+                        
                         // Esperar a que SonarQube procese los resultados si está disponible
                         sleep(time: 5, unit: 'SECONDS')
                         echo '✅ Análisis estático completado'
-
+                        
                     } catch (Exception e) {
                         echo "⚠️ Error en análisis estático: ${e.getMessage()}"
                         currentBuild.result = 'UNSTABLE'
                     }
-                    }
                 }
             }
         }
-
+        
         stage('Crear y Optimizar Dockerfile') {
             steps {
                 echo '🐳 Creando Dockerfile optimizado para DVWA...'
@@ -254,7 +259,7 @@ CMD ["/usr/local/bin/start-dvwa.sh"]
                 }
             }
         }
-
+        
         stage('Análisis de Seguridad del Dockerfile') {
             steps {
                 echo '🔒 Analizando seguridad del Dockerfile...'
@@ -291,7 +296,7 @@ CMD ["/usr/local/bin/start-dvwa.sh"]
                 }
             }
         }
-
+        
         stage('Construir Imagen Docker') {
             steps {
                 echo '🔨 Construyendo imagen Docker de DVWA...'
@@ -327,7 +332,7 @@ CMD ["/usr/local/bin/start-dvwa.sh"]
                 }
             }
         }
-
+        
         stage('Preparar Base de Datos') {
             steps {
                 echo '🗄️ Preparando base de datos MySQL...'
@@ -362,7 +367,7 @@ CMD ["/usr/local/bin/start-dvwa.sh"]
                 }
             }
         }
-
+        
         stage('Desplegar Aplicación DVWA') {
             steps {
                 echo '🚀 Desplegando aplicación DVWA...'
@@ -394,7 +399,7 @@ CMD ["/usr/local/bin/start-dvwa.sh"]
                 }
             }
         }
-
+        
         stage('Verificaciones de Salud') {
             steps {
                 echo '🏥 Ejecutando verificaciones de salud...'
@@ -588,7 +593,7 @@ CMD ["/usr/local/bin/start-dvwa.sh"]
                             echo ""
                             echo "=== FIN DIAGNÓSTICO DE EMERGENCIA ==="
                         '''
-
+                        
                         // Marcar como unstable en lugar de fallar completamente
                         currentBuild.result = 'UNSTABLE'
                         echo "⚠️ Las verificaciones de salud fallaron, pero el pipeline continuará como UNSTABLE"
@@ -597,7 +602,7 @@ CMD ["/usr/local/bin/start-dvwa.sh"]
                 }
             }
         }
-
+        
         stage('Análisis Dinámico con OWASP ZAP') {
             steps {
                 echo '🕷️ Iniciando análisis dinámico con OWASP ZAP...'
@@ -626,7 +631,7 @@ CMD ["/usr/local/bin/start-dvwa.sh"]
                 }
             }
         }
-
+        
         stage('Generar Reportes') {
             steps {
                 echo '📊 Generando y archivando reportes...'
@@ -666,10 +671,10 @@ EOF
                             echo "📁 Archivos de reporte generados:"
                             ls -la reports/
                         '''
-
+                        
                         // Archivar artefactos
                         archiveArtifacts artifacts: 'reports/**/*', fingerprint: true, allowEmptyArchive: true
-
+                        
                     } catch (Exception e) {
                         echo "⚠️ Error al generar reportes: ${e.getMessage()}"
                         currentBuild.result = 'UNSTABLE'
@@ -678,7 +683,7 @@ EOF
             }
         }
     }
-
+    
     post {
         always {
             echo '🧹 Ejecutando limpieza post-build...'
@@ -700,7 +705,7 @@ EOF
                 }
             }
         }
-
+        
         success {
             echo '🎉 ¡Pipeline completado exitosamente!'
             script {
@@ -711,7 +716,7 @@ EOF
                 '''
             }
         }
-
+        
         failure {
             echo '❌ Pipeline falló. Ejecutando limpieza de emergencia...'
             script {
@@ -731,7 +736,7 @@ EOF
                 }
             }
         }
-
+        
         unstable {
             echo '⚠️ Build marcado como inestable. Verificar reportes de análisis.'
         }
