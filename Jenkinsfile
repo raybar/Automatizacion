@@ -67,7 +67,7 @@ pipeline {
                         // Usar imagen Docker de SonarQube Scanner con conectividad al host
                         sh '''
                             # Verificar conectividad con SonarQube
-                            if curl -s --connect-timeout 5 http://localhost:9000/api/system/status > /dev/null; then
+                            if curl -s --connect-timeout 5 http://sonarqube:9000/api/system/status > /dev/null; then
                                 echo "✅ SonarQube está disponible, ejecutando análisis..."
                                 docker run --rm \
                                     --add-host=host.docker.internal:host-gateway \
@@ -734,3 +734,4 @@ EOF
         }
     }
 }
+
