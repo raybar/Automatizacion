@@ -80,8 +80,8 @@ pipeline {
                                     -Dsonar.projectName="DVWA Security Analysis" \
                                     -Dsonar.projectVersion=${BUILD_NUMBER} \
                                     -Dsonar.login=$SONAR_TOKEN \
-                                    -Dsonar.sources=./dvwa \
-                                    -Dsonar.exclusions="**/*.jpg,**/*.png,**/*.gif,**/*.pdf" \
+                                    -Dsonar.sources=.,vulnerabilities,dvwa/includes \
+                                    -Dsonar.exclusions="**/*.jpg,**/*.png,**/*.gif,**/*.pdf,**/css/**,**/js/**,**/images/**,**/*.md,**/*.txt,**/*.sh,**/*.yml,**/*.yaml,**/docs/**,**/external/**,**/hackable/uploads/**" \
                                     -Dsonar.php.coverage.reportPaths=coverage.xml
                             else
                                 echo "⚠️ SonarQube no está disponible, omitiendo análisis estático"
