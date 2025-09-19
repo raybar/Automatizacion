@@ -62,11 +62,11 @@ pipeline {
         stage('Análisis Estático con SonarQube') {
             steps {
                 echo '🔍 Iniciando análisis estático con SonarQube...'
+                // Usamos withCredentials para acceder de forma segura al token
+                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')])
                 script {
                     try {
                         // Usar imagen Docker de SonarQube Scanner con conectividad al host
-                        // Usamos withCredentials para acceder de forma segura al token
-                        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')])
                         sh '''
                             # Verificar conectividad con SonarQube
                             if curl -s --connect-timeout 5 http://sonarqube:9000/api/system/status > /dev/null; then
@@ -737,5 +737,6 @@ EOF
         }
     }
 }
+
 
 
