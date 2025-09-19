@@ -75,15 +75,14 @@ pipeline {
                                     --add-host=host.docker.internal:host-gateway \
                                     -v $(pwd):/usr/src \
                                     -e SONAR_HOST_URL=http://host.docker.internal:9000 \
-                                    -e SONAR_SCANNER_OPTS="-Dsonar.projectKey=DVWA-Proyecto-${BUILD_TIMESTAMP}" \
+                                    -e SONAR_LOGIN=$SONAR_TOKEN \
                                     sonarsource/sonar-scanner-cli:latest \
-                                    /usr/local/bin/sonar-scanner \
-                                        -Dsonar.projectName="DVWA Security Analysis" \
-                                        -Dsonar.projectVersion=${BUILD_NUMBER} \
-                                        -Dsonar.login=$SONAR_TOKEN \
-                                        -Dsonar.sources=./dvwa \
-                                        -Dsonar.exclusions="**/*.jpg,**/*.png,**/*.gif,**/*.pdf" \
-                                        -Dsonar.php.coverage.reportPaths=coverage.xml
+                                    -Dsonar.projectKey=DVWA-Proyecto-${BUILD_TIMESTAMP} \
+                                    -Dsonar.projectName="DVWA Security Analysis" \
+                                    -Dsonar.projectVersion=${BUILD_NUMBER} \
+                                    -Dsonar.sources=./dvwa \
+                                    -Dsonar.exclusions="**/*.jpg,**/*.png,**/*.gif,**/*.pdf" \
+                                    -Dsonar.php.coverage.reportPaths=coverage.xml
                             else
                                 echo "⚠️ SonarQube no está disponible, omitiendo análisis estático"
                                 echo "Para habilitar SonarQube, asegúrese de que esté ejecutándose en localhost:9000"
