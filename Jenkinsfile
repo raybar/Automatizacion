@@ -75,11 +75,11 @@ pipeline {
                                     --add-host=host.docker.internal:host-gateway \
                                     -v $(pwd):/usr/src \
                                     -e SONAR_HOST_URL=http://host.docker.internal:9000 \
-                                    -e SONAR_LOGIN=$SONAR_TOKEN \
                                     sonarsource/sonar-scanner-cli:latest \
                                     -Dsonar.projectKey=DVWA-Proyecto-${BUILD_TIMESTAMP} \
                                     -Dsonar.projectName="DVWA Security Analysis" \
                                     -Dsonar.projectVersion=${BUILD_NUMBER} \
+                                    -Dsonar.login=$SONAR_TOKEN \
                                     -Dsonar.sources=./dvwa \
                                     -Dsonar.exclusions="**/*.jpg,**/*.png,**/*.gif,**/*.pdf" \
                                     -Dsonar.php.coverage.reportPaths=coverage.xml
