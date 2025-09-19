@@ -65,7 +65,7 @@ pipeline {
                 script {
                     try {
                         // Usar imagen Docker de SonarQube Scanner con conectividad al host
-                        withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                             sh '''
                                 # Verificar conectividad con SonarQube
                                 if curl -s --connect-timeout 5 http://sonarqube:9000/api/system/status > /dev/null; then
@@ -746,3 +746,4 @@ EOF
         }
     }
 }
+
