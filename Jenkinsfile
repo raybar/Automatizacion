@@ -62,28 +62,25 @@ pipeline {
         stage('Análisis Estático con SonarQube') {
             steps {
                 echo '🔍 Iniciando análisis estático con SonarQube...'
-                // Usamos withCredentials para acceder de forma segura al token
-                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                    script {
+                script {
                     try {
                         // Usar imagen Docker de SonarQube Scanner con conectividad al host
                         sh '''
                             # Verificar conectividad con SonarQube
-                            if curl -s --connect-timeout 5 http://sonarqube:9000/api/system/status > /dev/null; then
+                            if curl -s --connect-timeout 5 http://localhost:9000/api/system/status > /dev/null; then
                                 echo "✅ SonarQube está disponible, ejecutando análisis..."
                                 docker run --rm \
                                     --add-host=host.docker.internal:host-gateway \
-                                    -v "${WORKSPACE}":/usr/src \
-                                    -w /usr/src \
+                                    -v $(pwd):/usr/src \
                                     -e SONAR_HOST_URL=http://host.docker.internal:9000 \
+                                    -e SONAR_SCANNER_OPTS="-Dsonar.projectKey=DVWA-Proyecto-${BUILD_TIMESTAMP}" \
                                     sonarsource/sonar-scanner-cli:latest \
-                                    -Dsonar.projectKey=DVWA-Proyecto-${BUILD_TIMESTAMP} \
-                                    -Dsonar.projectName="DVWA Security Analysis" \
-                                    -Dsonar.projectVersion=${BUILD_NUMBER} \
-                                    -Dsonar.login=$SONAR_TOKEN \
-                                    -Dsonar.sources=. \
-                                    -Dsonar.exclusions="**/*.jpg,**/*.png,**/*.gif,**/*.pdf,**/css/**,**/js/**,**/images/**,**/*.md,**/*.txt,**/*.sh,**/*.yml,**/*.yaml,**/docs/**,**/external/**,**/hackable/uploads/**" \
-                                    -Dsonar.php.coverage.reportPaths=coverage.xml
+                                    sonar-scanner \
+                                        -Dsonar.projectName="DVWA Security Analysis" \
+                                        -Dsonar.projectVersion=${BUILD_NUMBER} \
+                                        -Dsonar.sources=./dvwa \
+                                        -Dsonar.exclusions="**/*.jpg,**/*.png,**/*.gif,**/*.pdf" \
+                                        -Dsonar.php.coverage.reportPaths=coverage.xml
                             else
                                 echo "⚠️ SonarQube no está disponible, omitiendo análisis estático"
                                 echo "Para habilitar SonarQube, asegúrese de que esté ejecutándose en localhost:9000"
@@ -143,7 +140,6 @@ EOF
                     } catch (Exception e) {
                         echo "⚠️ Error en análisis estático: ${e.getMessage()}"
                         currentBuild.result = 'UNSTABLE'
-                    }
                     }
                 }
             }
