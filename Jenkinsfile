@@ -65,6 +65,8 @@ pipeline {
                 script {
                     try {
                         // Usar imagen Docker de SonarQube Scanner con conectividad al host
+                        // Usamos withCredentials para acceder de forma segura al token
+                        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')])
                         sh '''
                             # Verificar conectividad con SonarQube
                             if curl -s --connect-timeout 5 http://sonarqube:9000/api/system/status > /dev/null; then
@@ -75,9 +77,10 @@ pipeline {
                                     -e SONAR_HOST_URL=http://host.docker.internal:9000 \
                                     -e SONAR_SCANNER_OPTS="-Dsonar.projectKey=DVWA-Proyecto-${BUILD_TIMESTAMP}" \
                                     sonarsource/sonar-scanner-cli:latest \
-                                    sonar-scanner \
+                                    /usr/local/bin/sonar-scanner \
                                         -Dsonar.projectName="DVWA Security Analysis" \
                                         -Dsonar.projectVersion=${BUILD_NUMBER} \
+                                        -Dsonar.login=$SONAR_TOKEN \
                                         -Dsonar.sources=./dvwa \
                                         -Dsonar.exclusions="**/*.jpg,**/*.png,**/*.gif,**/*.pdf" \
                                         -Dsonar.php.coverage.reportPaths=coverage.xml
@@ -734,4 +737,5 @@ EOF
         }
     }
 }
+
 
