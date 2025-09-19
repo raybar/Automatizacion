@@ -73,7 +73,8 @@ pipeline {
                                 echo "✅ SonarQube está disponible, ejecutando análisis..."
                                 docker run --rm \
                                     --add-host=host.docker.internal:host-gateway \
-                                    -v $(pwd):/usr/src \
+                                    -v "${WORKSPACE}":/usr/src \
+                                    -w /usr/src \
                                     -e SONAR_HOST_URL=http://host.docker.internal:9000 \
                                     sonarsource/sonar-scanner-cli:latest \
                                     -Dsonar.projectKey=DVWA-Proyecto-${BUILD_TIMESTAMP} \
