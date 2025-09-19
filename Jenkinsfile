@@ -65,35 +65,39 @@ pipeline {
                 script {
                     try {
                         // Usar imagen Docker de SonarQube Scanner con conectividad al host
-                        sh '''
-                            # Verificar conectividad con SonarQube
-                            if curl -s --connect-timeout 5 http://sonarqube:9000/api/system/status > /dev/null; then
-                                echo "✅ SonarQube está disponible, ejecutando análisis..."
-                                
-                                # Verificar estructura de directorios
-                                ls -la
-                                
-                                # Ejecutar análisis de SonarQube con configuración corregida
-                                docker run --rm \
-                                    --add-host=host.docker.internal:host-gateway \
-                                    -v $(pwd):/usr/src \
-                                    -w /usr/src \
-                                    -e SONAR_HOST_URL=http://host.docker.internal:9000 \
-                                    sonarsource/sonar-scanner-cli:latest \
-                                    sonar-scanner \
-                                        -Dsonar.projectKey=DVWA-Proyecto-${BUILD_ID} \
-                                        -Dsonar.projectName="DVWA Security Analysis" \
-                                        -Dsonar.projectVersion=${BUILD_NUMBER} \
-                                        -Dsonar.login=${SONAR_TOKEN} \
-                                        -Dsonar.sources=. \
-                                        -Dsonar.inclusions="**/*.php,**/*.js,**/*.html" \
-                                        -Dsonar.exclusions="**/*.jpg,**/*.png,**/*.gif,**/*.pdf,**/css/**,**/images/**,**/*.md,**/*.txt,**/*.sh,**/*.yml,**/*.yaml,**/docs/**,**/external/**,**/hackable/uploads/**,**/dvwa@tmp/**" \
-                                        -Dsonar.php.coverage.reportPaths=coverage.xml
-                            else
-                                echo "⚠️ SonarQube no está disponible, omitiendo análisis estático"
-                                echo "Para habilitar SonarQube, asegúrese de que esté ejecutándose en localhost:9000"
-                            fi
-                        '''
+                        withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                            sh '''
+                                # Verificar conectividad con SonarQube
+                                if curl -s --connect-timeout 5 http://sonarqube:9000/api/system/status > /dev/null; then
+                                    echo "✅ SonarQube está disponible, ejecutando análisis..."
+                                    echo "🔐 Token de autenticación configurado correctamente"
+                                    
+                                    # Verificar estructura de directorios
+                                    ls -la
+                                    
+                                    # Ejecutar análisis de SonarQube con configuración corregida
+                                    docker run --rm \
+                                        --add-host=host.docker.internal:host-gateway \
+                                        -v $(pwd):/usr/src \
+                                        -w /usr/src \
+                                        -e SONAR_HOST_URL=http://host.docker.internal:9000 \
+                                        -e SONAR_TOKEN=${SONAR_TOKEN} \
+                                        sonarsource/sonar-scanner-cli:latest \
+                                        sonar-scanner \
+                                            -Dsonar.projectKey=DVWA-Proyecto-${BUILD_ID} \
+                                            -Dsonar.projectName="DVWA Security Analysis" \
+                                            -Dsonar.projectVersion=${BUILD_NUMBER} \
+                                            -Dsonar.login=${SONAR_TOKEN} \
+                                            -Dsonar.sources=. \
+                                            -Dsonar.inclusions="**/*.php,**/*.js,**/*.html" \
+                                            -Dsonar.exclusions="**/*.jpg,**/*.png,**/*.gif,**/*.pdf,**/css/**,**/images/**,**/*.md,**/*.txt,**/*.sh,**/*.yml,**/*.yaml,**/docs/**,**/external/**,**/hackable/uploads/**,**/dvwa@tmp/**" \
+                                            -Dsonar.php.coverage.reportPaths=coverage.xml
+                                else
+                                    echo "⚠️ SonarQube no está disponible, omitiendo análisis estático"
+                                    echo "Para habilitar SonarQube, asegúrese de que esté ejecutándose en localhost:9000"
+                                fi
+                            '''
+                        }
                         
                         // Análisis estático básico alternativo
                         echo "🔍 Ejecutando análisis estático básico..."
