@@ -63,8 +63,8 @@ pipeline {
             steps {
                 echo '🔍 Iniciando análisis estático con SonarQube...'
                 // Usamos withCredentials para acceder de forma segura al token
-                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')])
-                script {
+                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                    script {
                     try {
                         // Usar imagen Docker de SonarQube Scanner con conectividad al host
                         sh '''
@@ -143,6 +143,7 @@ EOF
                     } catch (Exception e) {
                         echo "⚠️ Error en análisis estático: ${e.getMessage()}"
                         currentBuild.result = 'UNSTABLE'
+                    }
                     }
                 }
             }
@@ -737,6 +738,3 @@ EOF
         }
     }
 }
-
-
-
